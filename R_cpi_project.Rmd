@@ -1,0 +1,320 @@
+---
+title: "Data Analysis Project - Fall 2017"
+author: "Robert Kirchgesner, Gary Doney, Alex Wong"
+date: "November 20, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1. Load data and run linear regression models for CPI datasets
+#
+```{r}
+#install.packages('ggplot2',repos = "http://cran.us.r-project.org")
+library('ggplot2')
+
+#Load CPI Data:
+
+dataset = read.csv("C:/Data/Bob/DATA001/UCSCX/Data_Analysis/FRED/CPI_SA.csv", header=T,
+                   colClasses = c("Date", "numeric", "numeric"))
+
+summary(dataset)
+inflation.model <- lm(CPI ~ Elapsed_Days, dataset)
+summary(inflation.model)
+plot(dataset$CPI~dataset$Elapsed_Days)
+abline(inflation.model, col='red')
+
+
+##
+dataset2 = read.csv("C:/Data/Bob/DATA001/UCSCX/Data_Analysis/FRED/MED_SA.csv", header=T,
+                   colClasses = c("Date", "numeric", "numeric"))
+
+summary(dataset2)
+inflation.model2 <- lm(MCPI ~ Elapsed_Days, data=dataset2)
+summary(inflation.model2)
+plot(dataset2$MCPI~dataset2$Elapsed_Days)
+abline(inflation.model2, col='red')
+
+
+plot(inflation.model)
+
+plot(inflation.model2)
+
+#
+#Additional views of data to analyze:
+
+o1<-ggplot(inflation.model) + aes(x=Elapsed_Days, y=CPI) +
+  geom_point() + stat_smooth(method = "lm", col="red")
+o2<-o1+labs(title="CPI (seasonally adjusted) from Jan 1, 1967 to Sept 1, 2017") + xlab("Days elapsed from Jan 1, 1967") + 
+  ylab("CPI Value (1/1/67) = 32.9") + theme(legend.position=c(.1,.8))
+o2
+o3<-ggplot(inflation.model2) + aes(x=Elapsed_Days, y=MCPI) +
+   geom_point() + stat_smooth(method = "lm", col="red")
+o4<-o3+labs(title="CPI for Medical Care (seasonally adjusted) from Jan 1, 1967 to Sept 1, 2017") + xlab("Days elapsed from Jan 1, 1967") + 
+   ylab("Med CPI Value (1/1/67) = 27.4") + theme(legend.position=c(.1,.8))
+o4
+
+#Notes:
+#The Durbin-Watson test{6} should be included, since our model is a time series.
+#In R:  durbinWatsonTest(fit)
+#It should be between 1.5 and 2.5.
+#
+#The Shapiro-Wilk test{6} tests for normal distribution of the residuals. 
+#6.53: if p-value > 0.05 then we cannot reject the null hypothesis that residuals are normally distributed.
+#therefore: linear regression models constitute a safe analysis
+#
+#install.packages("car")
+library(car)
+durbinWatsonTest(inflation.model, max.lag=1, simulate=TRUE, reps=1000,
+                 method=c("resample","normal"),
+                 alternative=c("two.sided", "positive", "negative"))
+durbinWatsonTest(inflation.model2, max.lag=1, simulate=TRUE, reps=1000,
+                 method=c("resample","normal"),
+                 alternative=c("two.sided", "positive", "negative"))
+
+
+library(stats)
+summary(inflation.model2)
+summary(inflation.model2)
+
+#predict(inflation.model2,dataset2)
+#anova(inflation.model2)
+#coefficients(inflation.model2)
+#confint(inflation.model2)
+#deviance(inflation.model2)
+#fitted(inflation.model2)
+#residuals(inflation.model2)
+
+#
+cpi.matrix <- matrix(c(dataset$Elapsed_Days,dataset$CPI,dataset2$MCPI),ncol=3)
+cpi.dataframe <- data.frame(cpi.matrix)
+colnames(cpi.dataframe) <- c("Elapsed_Days", "CPI", "MCPI")
+library(Hmisc)
+datadensity(cpi.dataframe)
+describe.data.frame(cpi.dataframe)
+
+sd(cpi.dataframe$CPI, na.rm=TRUE)
+#66.5585
+sd(cpi.dataframe$MCPI, na.rm=TRUE)
+#139.1181
+
+x1 <- cpi.dataframe$CPI + rnorm(cpi.dataframe$CPI, sd = 66)
+m1 <- HoltWinters(x1, gamma=FALSE)
+plot(m1)
+x2 <- cpi.dataframe$MCPI + rnorm(cpi.dataframe$MCPI, sd = 139)
+m2 <- HoltWinters(x2, gamma=FALSE)
+plot(m2)
+
+
+shapiro.test(rnorm(100, mean = 136, sd = 66))
+#p-value= 0.7764
+shapiro.test(rnorm(100, mean = 203, sd = 139))
+#p-value= 0.9083
+shapiro.test(rnorm(700, mean = 203, sd = 139))
+#p-value= 0.5354
+
+#chisq.test(vector_name, p=vector_null_probs) - chi square goodness of fit test
+chisq.test(cpi.dataframe$MCPI)
+#Chi-squared test for given probabilities
+#X-squared = 57973, df = 608, p-value < 2.2e-16
+ks.test(cpi.dataframe$CPI,cpi.dataframe$MCPI)
+
+#install.packages("moments")
+library(moments)
+skewness(dataset2)
+#0.377
+skewness(dataset)
+#0.218
+kurtosis(dataset2)
+#1.84
+kurtosis(dataset)
+#1.74
+moment(dataset2)
+#1.84
+moment(dataset)
+#1.74
+round(prop.table(dataset2$MCPI),4)
+margin.table(as.array(dataset2$MCPI))
+hist(dataset2$MCPI)
+hist(dataset$CPI)
+
+```
+
+#2. What to do next
+#Calculate projections on Consumer Price All Index
+#
+```{r}
+#Calculate projections using our model.
+#slope (m)  1.241e-02
+m = .01241
+#y-intercept (b) 2.144e+01
+b = 21.44
+#Model ends with Elapsed_Days = 18506 days.
+#Elapsed days: 5 yrs, 10 yrs, 20 yrs, 30 yrs
+Y5  = 18506 + 5 * 365
+Y10 = 18506 + 10 * 365
+Y20 = 18506 + 20 * 365
+Y30 = 18506 + 30 * 365
+Y5
+Y10
+Y20
+Y30
+#Future years: CPIY5, CPIY10, CPIY20, CPIY30
+CPIY5  = m*Y5  + b
+CPIY10 = m*Y10 + b
+CPIY20 = m*Y20 + b
+CPIY30 = m*Y30 + b
+#Show Values
+CPIY5
+CPIY10
+CPIY20
+CPIY30
+#Present CPI (from data where Record_Date=09/01/2017) is:  246.373
+edays = 18506
+
+#CPI0 = 246.73
+CPI0 = (edays*m)+ b
+CPI0
+#251.0995
+#Use this, to calculate % increase in inflation in the future years.
+#I5, I10, I20, I30
+#I5 =  ((CPIY5  - CPI0)/CPI0) * 100
+#I10 = ((CPIY10 - CPI0)/CPI0) * 100
+#I20 = ((CPIY20 - CPI0)/CPI0) * 100
+#I30 = ((CPIY30 - CPI0)/CPI0) * 100
+I5 =   (CPIY5/CPI0)
+I10 =  (CPIY10/CPI0)
+I20 =  (CPIY20/CPI0)
+I30 =  (CPIY30/CPI0)
+#Show Percent Increase in CPI Inflation at 5, 10, 20, 30 years
+CPI0
+CPIY5
+I5
+I10
+I20
+I30
+# MT0 = Money today = $10000
+# MTy = How much money is needed in Y years to equal the spending power of MT0.
+MT10K  = 10000
+#MT5  = MT0
+#MT5  = 10000 * (1 + I5/100)
+#MT10 = 10000 * (1 + I10/100)
+#MT20 = 10000 * (1 + I20/100)
+#MT30 = 10000 * (1 + I30/100)
+MT5  = I5*MT10K
+MT10 = I10*MT10K
+MT20 = I20*MT10K
+MT30 = I30*MT10K
+MT10K
+MT5
+MT10
+MT20
+MT30
+
+MT50K  = 50000
+MT5  = I5*MT50K
+MT10 = I10*MT50K
+MT20 = I20*MT50K
+MT30 = I30*MT50K
+MT50K
+MT5
+MT10
+MT20
+MT30
+
+```
+#
+#3. What to do next
+#Calculate projections on Consumer Price Index for All Urban Consumers: Medical Care
+#
+```{r}
+#Calculate projections using our model.
+summary(inflation.model2)
+#
+
+#slope (m)
+m = .02564
+#y-intercept (b)
+b = -34.24
+#Model also ends with Elapsed_Days = 18506 days.
+#Elapsed days: 5 yrs, 10 yrs, 20 yrs, 30 yrs
+Y5  = 18506 + 5 * 365
+Y10 = 18506 + 10 * 365
+Y20 = 18506 + 20 * 365
+Y30 = 18506 + 30 * 365
+#Future years: MCPIY5, MCPIY10, MCPIY20, MCPIY30
+MCPIY5  = m*Y5  + b
+MCPIY10 = m*Y10 + b
+MCPIY20 = m*Y20 + b
+MCPIY30 = m*Y30 + b
+#Show Values
+MCPIY5
+#487.0468
+MCPIY10
+#533.8398
+MCPIY20
+#627.4258
+MCPIY30
+#721.0118
+#Present CPI (from data where Record_Date=09/01/2017) is:  476.696
+#MCPI0 = 476.696
+edays = 18506
+MCPI0 = (edays*m)+ b
+MCPI0
+#440.2538
+#Use this, to calculate % increase in inflation in the future years.
+#I5, I10, I20, I30
+#MI5 =  ((MCPIY5  - MCPI0)/MCPI0) * 100
+#MI10 = ((MCPIY10 - MCPI0)/MCPI0) * 100
+#MI20 = ((MCPIY20 - MCPI0)/MCPI0) * 100
+#MI30 = ((MCPIY30 - MCPI0)/MCPI0) * 100
+MI5 =  (MCPIY5/MCPI0)
+MI10 = (MCPIY10/MCPI0)
+MI20 = (MCPIY20/MCPI0)
+MI30 = (MCPIY30/MCPI0)
+#Show Percent Increase in CPI Inflation at 5, 10, 20, 30 years
+MCPI0
+MCPIY5
+MI5
+#1.10%
+MI10
+#1.21%
+MI20
+#1.42%
+MI30
+#1.63%
+# MTK = Money today = $10000
+# MTY = How much money is needed in Y years to equal the spending power of MT0.
+MT10K = 10000
+#MT5  = 1000 * (1 + MI5/100)
+#MT10 = 1000 * (1 + MI10/100)
+#MT20 = 1000 * (1 + MI20/100)
+#MT30 = 1000 * (1 + MI30/100)
+MT5  = MI5*MT10K
+MT10 = MI10*MT10K
+MT20 = MI20*MT10K
+MT30 = MI30*MT10K
+MT10K
+MT5
+MT10
+MT20
+MT30
+
+MT50K = 50000
+MT5  = MI5*MT50K
+MT10 = MI10*MT50K
+MT20 = MI20*MT50K
+MT30 = MI30*MT50K
+MT50K
+MT5
+MT10
+MT20
+MT30
+
+```
+#
+
+
+##end-of-file
